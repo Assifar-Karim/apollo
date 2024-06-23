@@ -1,0 +1,24 @@
+syntax = "proto3";
+option go_package = "github.com/Assifar-Karim/apollo/internal/proto";
+
+message Task {
+    int64 type = 1;
+    optional int64 nReducers = 2;
+    string programPath = 3;
+    repeated FileData inputData = 4;
+}
+
+message FileData {
+    string path = 1;
+    optional int64 splitStart = 2;
+    optional int64 splitEnd = 3;
+}
+
+message TaskStatusInfo {
+    string taskStatus = 1; // idle, in-progress, completed
+    repeated FileData resultingFiles = 2; // This field is mainly used for map tasks results
+}
+
+service TaskCreator {
+    rpc StartTask (Task) returns (stream TaskStatusInfo);
+}
