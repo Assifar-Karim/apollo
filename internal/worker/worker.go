@@ -13,3 +13,7 @@ type Worker struct {
 func (w *Worker) SetWorkerAlgorithm(algorithm WorkerAlgorithm) {
 	w.workerAlgorithm = algorithm
 }
+
+func (w Worker) TestWorkerType(task *proto.Task) {
+	w.workerAlgorithm.HandleTask(task)
+}
