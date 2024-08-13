@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"context"
+	"sync"
 
 	"github.com/Assifar-Karim/apollo/internal/proto"
 	"github.com/Assifar-Karim/apollo/internal/worker"
@@ -14,22 +14,50 @@ type TaskCreatorHandler struct {
 	worker *worker.Worker
 }
 
-func (h TaskCreatorHandler) StartTask(ctx context.Context, task *proto.Task) (*proto.TaskStatusInfo, error) {
+func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator_StartTaskServer) error {
 	workerType := task.GetType()
 	var workerAlgorithm worker.WorkerAlgorithm
+	var err error = nil
+
 	if workerType == 0 {
 		workerAlgorithm = worker.Mapper{}
 	} else if workerType == 1 {
 		workerAlgorithm = worker.Reducer{}
 	} else {
-		return nil, status.Error(codes.InvalidArgument, "illegal worker type")
+		return status.Error(codes.InvalidArgument, "illegal worker type")
 	}
 	h.worker.SetWorkerAlgorithm(workerAlgorithm)
-	h.worker.TestWorkerType(task)
-	return &proto.TaskStatusInfo{
+
+	stream.Send(&proto.TaskStatusInfo{
 		TaskStatus:     "idle",
 		ResultingFiles: []*proto.FileData{},
-	}, nil
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		err = h.worker.TestWorkerType(task)
+	}()
+
+	stream.Send(&proto.TaskStatusInfo{
+		TaskStatus:     "in-progress",
+		ResultingFiles: []*proto.FileData{},
+	})
+
+	wg.Wait()
+	stream.Send(&proto.TaskStatusInfo{
+		TaskStatus:     "completed",
+		ResultingFiles: []*proto.FileData{},
+	})
+	if err != nil {
+		stream.Send(&proto.TaskStatusInfo{
+			TaskStatus:     "failed",
+			ResultingFiles: []*proto.FileData{},
+		})
+	}
+	return err
 }
 
 func NewTaskCreatorHandler(worker *worker.Worker) *TaskCreatorHandler {
