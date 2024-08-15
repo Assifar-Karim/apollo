@@ -6,6 +6,12 @@ message Task {
     optional int64 nReducers = 2;
     string programPath = 3;
     repeated FileData inputData = 4;
+    Credentials objectStorageCreds = 5; 
+}
+
+message Credentials {
+    string username = 1;
+    string password = 2;
 }
 
 message FileData {

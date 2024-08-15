@@ -20,9 +20,9 @@ func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator
 	var err error = nil
 
 	if workerType == 0 {
-		workerAlgorithm = worker.Mapper{}
+		workerAlgorithm = &worker.Mapper{}
 	} else if workerType == 1 {
-		workerAlgorithm = worker.Reducer{}
+		workerAlgorithm = &worker.Reducer{}
 	} else {
 		return status.Error(codes.InvalidArgument, "illegal worker type")
 	}
