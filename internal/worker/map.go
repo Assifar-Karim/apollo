@@ -46,7 +46,7 @@ func (m *Mapper) HandleTask(task *proto.Task) {
 	fmt.Println("mapper")
 }
 
-func (m *Mapper) FetchInputData(task *proto.Task) (*bufio.Scanner, io.Closeable, error) {
+func (m *Mapper) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closeable, error) {
 	inputData := task.GetInputData()
 	if len(inputData) == 0 {
 		return nil, nil, status.Error(codes.InvalidArgument, "can't find input data to use for task")
@@ -60,5 +60,6 @@ func (m *Mapper) FetchInputData(task *proto.Task) (*bufio.Scanner, io.Closeable,
 	if err != nil {
 		return nil, nil, err
 	}
-	return m.inputFSRegistrar.GetFile(inputData[0])
+	scanner, closeable, err := m.inputFSRegistrar.GetFile(inputData[0])
+	return []*bufio.Scanner{scanner}, []io.Closeable{closeable}, err
 }

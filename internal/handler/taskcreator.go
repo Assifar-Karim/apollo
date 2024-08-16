@@ -47,13 +47,15 @@ func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator
 	})
 
 	wg.Wait()
-	stream.Send(&proto.TaskStatusInfo{
-		TaskStatus:     "completed",
-		ResultingFiles: []*proto.FileData{},
-	})
+
 	if err != nil {
 		stream.Send(&proto.TaskStatusInfo{
 			TaskStatus:     "failed",
+			ResultingFiles: []*proto.FileData{},
+		})
+	} else {
+		stream.Send(&proto.TaskStatusInfo{
+			TaskStatus:     "completed",
 			ResultingFiles: []*proto.FileData{},
 		})
 	}

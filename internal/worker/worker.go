@@ -10,7 +10,7 @@ import (
 )
 
 type WorkerAlgorithm interface {
-	FetchInputData(task *proto.Task) (*bufio.Scanner, io.Closeable, error)
+	FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closeable, error)
 	HandleTask(task *proto.Task)
 }
 
@@ -29,16 +29,22 @@ func (w *Worker) SetWorkerAlgorithm(algorithm WorkerAlgorithm) {
 
 func (w Worker) TestWorkerType(task *proto.Task) error {
 	w.workerAlgorithm.HandleTask(task)
-	scanner, closeable, err := w.workerAlgorithm.FetchInputData(task)
+	scanners, closeables, err := w.workerAlgorithm.FetchInputData(task)
 	if err != nil {
 		return err
 	}
-	defer closeable.Close()
-	// defer closeable.Close()
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Println(line)
+
+	for _, closeable := range closeables {
+		defer closeable.Close()
 	}
+
+	for _, scanner := range scanners {
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Println(line)
+		}
+	}
+
 	time.Sleep(5 * time.Second)
 	return nil
 }
