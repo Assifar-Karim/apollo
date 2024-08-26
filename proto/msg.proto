@@ -4,7 +4,7 @@ option go_package = "github.com/Assifar-Karim/apollo/internal/proto";
 message Task {
     int64 type = 1; // 0: map, 1: reduce
     optional int64 nReducers = 2;
-    string programPath = 3;
+    Program program = 3;
     repeated FileData inputData = 4;
     Credentials objectStorageCreds = 5; 
 }
@@ -18,6 +18,11 @@ message FileData {
     string path = 1;
     optional int64 splitStart = 2;
     optional int64 splitEnd = 3;
+}
+
+message Program {
+    string name = 1;
+    bytes content = 2;
 }
 
 message TaskStatusInfo {

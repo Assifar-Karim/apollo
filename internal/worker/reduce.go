@@ -14,8 +14,9 @@ type Reducer struct {
 	inputFSRegistrar io.FSRegistrar
 }
 
-func (r *Reducer) HandleTask(task *proto.Task) {
+func (r *Reducer) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 	fmt.Println("reducer")
+	return nil
 }
 
 func (r *Reducer) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closeable, error) {

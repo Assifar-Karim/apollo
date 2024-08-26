@@ -2,7 +2,6 @@ package worker
 
 import (
 	"bufio"
-	"fmt"
 	"time"
 
 	"github.com/Assifar-Karim/apollo/internal/io"
@@ -11,7 +10,7 @@ import (
 
 type WorkerAlgorithm interface {
 	FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closeable, error)
-	HandleTask(task *proto.Task)
+	HandleTask(task *proto.Task, input []*bufio.Scanner) error
 }
 
 type Worker struct {
@@ -28,22 +27,25 @@ func (w *Worker) SetWorkerAlgorithm(algorithm WorkerAlgorithm) {
 // STEP 3: Send the generated data into the sinks (locally mounted pv for a mapper, object storage for a reducer)
 
 func (w Worker) TestWorkerType(task *proto.Task) error {
-	w.workerAlgorithm.HandleTask(task)
 	scanners, closeables, err := w.workerAlgorithm.FetchInputData(task)
 	if err != nil {
 		return err
 	}
-
 	for _, closeable := range closeables {
 		defer closeable.Close()
 	}
 
-	for _, scanner := range scanners {
-		for scanner.Scan() {
-			line := scanner.Text()
-			fmt.Println(line)
-		}
+	err = w.workerAlgorithm.HandleTask(task, scanners)
+	if err != nil {
+		return err
 	}
+
+	// for _, scanner := range scanners {
+	// 	for scanner.Scan() {
+	// 		line := scanner.Text()
+	// 		fmt.Println(line)
+	// 	}
+	// }
 
 	time.Sleep(5 * time.Second)
 	return nil
