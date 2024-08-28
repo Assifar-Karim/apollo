@@ -14,15 +14,15 @@ import (
 
 	"github.com/Assifar-Karim/apollo/internal/io"
 	"github.com/Assifar-Karim/apollo/internal/proto"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// NOTE (KARIM): the mapper struct should have 2 registrar attributes (1 for input called inputFSRegistrar and 1 for output)
-
 type Mapper struct {
-	inputFSRegistrar io.FSRegistrar
-	output           map[int][]KVPair
+	inputFSRegistrar  io.FSRegistrar
+	outputFSRegistrar io.FSRegistrar
+	output            map[int][]KVPair
 }
 
 type KVPairArray struct {
@@ -173,4 +173,34 @@ func (m *Mapper) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closea
 	}
 	scanner, closeable, err := m.inputFSRegistrar.GetFile(inputData[0])
 	return []*bufio.Scanner{scanner}, []io.Closeable{closeable}, err
+}
+
+func (m *Mapper) PersistOutputData(task *proto.Task) error {
+	taskId := task.GetId()
+	if taskId == "" {
+		return status.Error(codes.InvalidArgument, "task id can't be empty")
+	}
+
+	var eg errgroup.Group
+	for partitionKey, partition := range m.output {
+		partitionKey := partitionKey
+		partition := partition
+
+		eg.Go(func() error {
+			jsonPartition, err := json.Marshal(&KVPairArray{
+				Pairs: partition,
+			})
+			if err != nil {
+				return status.Error(codes.Internal, err.Error())
+			}
+			return m.outputFSRegistrar.WriteFile(fmt.Sprintf("/mappers/%v_%v.json", taskId, partitionKey), jsonPartition)
+		})
+	}
+	return eg.Wait()
+}
+
+func NewMapper() *Mapper {
+	return &Mapper{
+		outputFSRegistrar: io.LocalFSRegistrar{},
+	}
 }

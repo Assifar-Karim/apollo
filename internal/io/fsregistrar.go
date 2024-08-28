@@ -12,4 +12,5 @@ type Closeable interface {
 
 type FSRegistrar interface {
 	GetFile(fileData *proto.FileData) (*bufio.Scanner, Closeable, error)
+	WriteFile(path string, content []byte) error
 }

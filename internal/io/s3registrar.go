@@ -47,6 +47,11 @@ func (r S3Registrar) GetFile(fileData *proto.FileData) (*bufio.Scanner, Closeabl
 	return scanner, object, err
 }
 
+// TODO: Implement the S3 write logic
+func (r S3Registrar) WriteFile(path string, content []byte) error {
+	return nil
+}
+
 func NewS3Registrar(endpoint, accessKeyID, secretAccessKey string, useSSL bool) (*S3Registrar, error) {
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),

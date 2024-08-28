@@ -11,6 +11,7 @@ import (
 type WorkerAlgorithm interface {
 	FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closeable, error)
 	HandleTask(task *proto.Task, input []*bufio.Scanner) error
+	PersistOutputData(task *proto.Task) error
 }
 
 type Worker struct {
@@ -36,6 +37,10 @@ func (w Worker) TestWorkerType(task *proto.Task) error {
 	}
 
 	err = w.workerAlgorithm.HandleTask(task, scanners)
+	if err != nil {
+		return err
+	}
+	err = w.workerAlgorithm.PersistOutputData(task)
 	if err != nil {
 		return err
 	}

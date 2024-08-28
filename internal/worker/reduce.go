@@ -44,3 +44,7 @@ func (r *Reducer) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Close
 	}
 	return scanners, closeables, nil
 }
+
+func (r *Reducer) PersistOutputData(task *proto.Task) error {
+	return nil
+}

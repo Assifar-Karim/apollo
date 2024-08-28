@@ -23,3 +23,11 @@ func (r LocalFSRegistrar) GetFile(fileData *proto.FileData) (*bufio.Scanner, Clo
 	scanner := bufio.NewScanner(file)
 	return scanner, file, err
 }
+
+func (r LocalFSRegistrar) WriteFile(path string, content []byte) error {
+	err := os.WriteFile(path, content, 0644)
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	return nil
+}
