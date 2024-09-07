@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/Assifar-Karim/apollo/internal/io"
 	"github.com/Assifar-Karim/apollo/internal/proto"
@@ -31,6 +32,11 @@ type KVPairArray struct {
 type KVPair struct {
 	Key   any `json:"key"`
 	Value any `json:"value"`
+}
+
+type partitionPayload struct {
+	partitionKey int
+	pair         KVPair
 }
 
 func (m *Mapper) setinputFSRegistrar(fileData *proto.FileData, credentials *proto.Credentials) error {
@@ -70,44 +76,6 @@ func hash[T any](input T) (int, error) {
 	return int(hasher.Sum32()), nil
 }
 
-func mapAction(key, value, programName string) ([]KVPair, error) {
-	// Step 1: open unix socket connection
-	socket, err := net.Listen("unix", "/tmp/map.sock")
-	if err != nil {
-		return []KVPair{}, err
-	}
-	defer socket.Close()
-	// Step 2: execute program
-	cmd := exec.Command(programName, key, fmt.Sprintf("\"%s\"", value))
-
-	if err = cmd.Start(); err != nil {
-		return []KVPair{}, err
-	}
-	// Step 3: wait for the custom program's results on socket
-	fd, err := socket.Accept()
-	if err != nil {
-		return []KVPair{}, err
-	}
-
-	buf := make([]byte, 1024)
-	_, err = fd.Read(buf)
-	if err != nil {
-		return []KVPair{}, err
-	}
-	buf = bytes.Trim(buf, "\x00")
-	var pairsArray KVPairArray
-	err = json.Unmarshal(buf, &pairsArray)
-	if err != nil {
-		return []KVPair{}, err
-	}
-	fd.Close()
-
-	if err = cmd.Wait(); err != nil {
-		return []KVPair{}, err
-	}
-	return pairsArray.Pairs, nil
-}
-
 func (m *Mapper) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 	nReducers := task.GetNReducers()
 	if nReducers == 0 {
@@ -129,29 +97,80 @@ func (m *Mapper) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 	if err != nil {
 		return status.Error(codes.Internal, err.Error())
 	}
+
+	socket, err := net.Listen("unix", "/tmp/map.sock")
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	defer socket.Close()
 	output := make(map[int][]KVPair)
 	lineNumber := 0
 	for _, scanner := range input {
+		// Producers
+		pairsChan := make(chan partitionPayload)
+		var eg errgroup.Group
 		for scanner.Scan() {
 			line := scanner.Text()
-			// NOTE (KARIM): Think about making this logic concurrent using goroutines, channels, and a unix socket server abstraction
-			// step 1: handle process execution from program path -> process returns a list of keys and values
-			pairs, err := mapAction(fmt.Sprintf("%v", lineNumber), line, pName)
-			if err != nil {
-				return status.Error(codes.Internal, err.Error())
-			}
-			// step 2: generate a partition key out of the returned keys
-			for _, pair := range pairs {
-				paritionKey, err := hash(pair.Key)
-				if err != nil {
-					return status.Error(codes.Internal, err.Error())
+			eg.Go(func() error {
+				cmd := exec.Command(pName, fmt.Sprintf("%v", lineNumber), line)
+				if err := cmd.Start(); err != nil {
+					return err
 				}
-				paritionKey = paritionKey % int(nReducers)
-				// step 3: append the map result to the task's global partition state
-				output[paritionKey] = append(output[paritionKey], pair)
-			}
+				return cmd.Wait()
+			})
+
 			lineNumber++
 		}
+		// Consumers
+		for i := 0; i < lineNumber; i++ {
+			eg.Go(func() error {
+				fd, err := socket.Accept()
+				if err != nil {
+					return err
+				}
+
+				buf := make([]byte, 1024)
+				_, err = fd.Read(buf)
+				if err != nil {
+					return err
+				}
+				buf = bytes.Trim(buf, "\x00")
+				var pairsArray KVPairArray
+				err = json.Unmarshal(buf, &pairsArray)
+				if err != nil {
+					return err
+				}
+				fd.Close()
+
+				for _, pair := range pairsArray.Pairs {
+					paritionKey, err := hash(pair.Key)
+					if err != nil {
+						return err
+					}
+					paritionKey = paritionKey % int(nReducers)
+					pairsChan <- partitionPayload{
+						partitionKey: paritionKey,
+						pair:         pair,
+					}
+				}
+				return nil
+			})
+		}
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			for payload := range pairsChan {
+				partitionkey := payload.partitionKey
+				pair := payload.pair
+				output[partitionkey] = append(output[partitionkey], pair)
+			}
+			wg.Done()
+		}()
+		if err = eg.Wait(); err != nil {
+			return status.Error(codes.Internal, err.Error())
+		}
+		close(pairsChan)
+		wg.Wait()
 	}
 	m.output = output
 	return nil
