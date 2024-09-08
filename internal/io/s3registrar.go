@@ -34,12 +34,13 @@ func (r S3Registrar) GetFile(fileData *proto.FileData) (*bufio.Scanner, Closeabl
 
 	pathInfo := strings.Split(fileData.GetPath(), "/")
 
-	object, err := r.minioClient.GetObject(context.Background(), pathInfo[len(pathInfo)-2], pathInfo[len(pathInfo)-1], objectOptions)
+	// This check is added to verify whether the stored file trully exists in the object storage or not and if the app can access it
+	_, err := r.minioClient.StatObject(context.Background(), pathInfo[len(pathInfo)-2], pathInfo[len(pathInfo)-1], objectOptions)
 	if err != nil {
 		return nil, nil, status.Error(codes.Internal, err.Error())
 	}
-	// This check is added to verify whether the stored file trully exists in the object storage or not and if the app can access it
-	_, err = object.Stat()
+
+	object, err := r.minioClient.GetObject(context.Background(), pathInfo[len(pathInfo)-2], pathInfo[len(pathInfo)-1], objectOptions)
 	if err != nil {
 		return nil, nil, status.Error(codes.Internal, err.Error())
 	}
