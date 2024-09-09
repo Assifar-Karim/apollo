@@ -104,13 +104,28 @@ func (m *Mapper) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 	}
 	defer socket.Close()
 	output := make(map[int][]KVPair)
-	lineNumber := 0
-	for _, scanner := range input {
+	endLine := ""
+	for idx, scanner := range input {
+		lineNumber := 0
+		// Skip the first line of every input split that doesn't start at offset 0
+		if task.InputData[idx].GetSplitStart() != 0 {
+			scanner.Scan()
+		}
 		// Producers
 		pairsChan := make(chan partitionPayload)
 		var eg errgroup.Group
-		for scanner.Scan() {
+		for idx == 0 && scanner.Scan() {
 			line := scanner.Text()
+			// Check if the line is incomplete unless it's in the final input split
+			rLine := []rune(line)
+			if len(input) > 1 && rLine[len(line)-1] != '\n' {
+				endLine += line
+				break
+			}
+			// Remove the newline character from the line
+			if rLine[len(line)-1] == '\n' {
+				line = line[0 : len(line)-1]
+			}
 			eg.Go(func() error {
 				cmd := exec.Command(pName, fmt.Sprintf("%v", lineNumber), line)
 				if err := cmd.Start(); err != nil {
@@ -119,6 +134,19 @@ func (m *Mapper) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 				return cmd.Wait()
 			})
 
+			lineNumber++
+		}
+		if idx == 1 {
+			line := endLine + scanner.Text()
+			// Remove the newline character from the line
+			line = line[0 : len(line)-1]
+			eg.Go(func() error {
+				cmd := exec.Command(pName, fmt.Sprintf("%v", lineNumber), line)
+				if err := cmd.Start(); err != nil {
+					return err
+				}
+				return cmd.Wait()
+			})
 			lineNumber++
 		}
 		// Consumers
@@ -186,12 +214,21 @@ func (m *Mapper) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closea
 		return nil, nil, status.Error(codes.InvalidArgument, "can't find object storage credential infos")
 	}
 
-	err := m.setinputFSRegistrar(inputData[0], creds)
-	if err != nil {
-		return nil, nil, err
+	scanners := make([]*bufio.Scanner, 0)
+	closeables := make([]io.Closeable, 0)
+	for _, fileData := range inputData {
+		err := m.setinputFSRegistrar(fileData, creds)
+		if err != nil {
+			return nil, nil, err
+		}
+		scanner, closeable, err := m.inputFSRegistrar.GetFile(fileData)
+		if err != nil {
+			return nil, nil, err
+		}
+		scanners = append(scanners, scanner)
+		closeables = append(closeables, closeable)
 	}
-	scanner, closeable, err := m.inputFSRegistrar.GetFile(inputData[0])
-	return []*bufio.Scanner{scanner}, []io.Closeable{closeable}, err
+	return scanners, closeables, nil
 }
 
 func (m *Mapper) PersistOutputData(task *proto.Task) error {

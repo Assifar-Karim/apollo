@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Assifar-Karim/apollo/internal/proto"
+	"github.com/Assifar-Karim/apollo/internal/utils"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"google.golang.org/grpc/codes"
@@ -44,7 +45,7 @@ func (r S3Registrar) GetFile(fileData *proto.FileData) (*bufio.Scanner, Closeabl
 	if err != nil {
 		return nil, nil, status.Error(codes.Internal, err.Error())
 	}
-	scanner := bufio.NewScanner(object)
+	scanner := utils.NewScanner(object)
 	return scanner, object, err
 }
 
