@@ -3,10 +3,8 @@ package worker
 import (
 	"bufio"
 	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"net"
 	"os"
 	"os/exec"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/Assifar-Karim/apollo/internal/io"
 	"github.com/Assifar-Karim/apollo/internal/proto"
+	"github.com/Assifar-Karim/apollo/internal/utils"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -62,18 +61,6 @@ func (m *Mapper) setinputFSRegistrar(fileData *proto.FileData, credentials *prot
 		m.inputFSRegistrar = inputFSRegistrar
 	}
 	return err
-}
-
-func hash[T any](input T) (int, error) {
-	buffer := bytes.NewBuffer([]byte{})
-	encoder := gob.NewEncoder(buffer)
-	err := encoder.Encode(input)
-	if err != nil {
-		return 0, err
-	}
-	hasher := fnv.New32a()
-	hasher.Write(buffer.Bytes())
-	return int(hasher.Sum32()), nil
 }
 
 func (m *Mapper) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
@@ -171,7 +158,7 @@ func (m *Mapper) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 				fd.Close()
 
 				for _, pair := range pairsArray.Pairs {
-					paritionKey, err := hash(pair.Key)
+					paritionKey, err := utils.Hash(pair.Key)
 					if err != nil {
 						return err
 					}
