@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Assifar-Karim/apollo/internal/io"
@@ -20,13 +21,38 @@ import (
 )
 
 type Reducer struct {
-	inputFSRegistrar io.FSRegistrar
-	output           []KVPair
+	inputFSRegistrar  io.FSRegistrar
+	outputFSRegistrar io.FSRegistrar
+	output            []KVPair
 }
 
 type OrderedKVPair struct {
 	Key   KVPair `json:"key"`
 	Value any    `json:"value"`
+}
+
+func (r *Reducer) setOutputFSRegistrar(storageData *proto.OutputStorageInfo, credentials *proto.Credentials) error {
+	location := storageData.GetLocation()
+	if location == "" {
+		return status.Error(codes.InvalidArgument, "empty storage location")
+	}
+	locationInfo := strings.Split(location, "/")
+	protocol := locationInfo[0]
+	var useSSL bool
+	if protocol == "http:" {
+		useSSL = false
+		location = strings.Join(locationInfo[2:], "/")
+	} else if protocol == "https:" {
+		useSSL = true
+		location = strings.Join(locationInfo[2:], "/")
+	} else {
+		useSSL = storageData.GetUseSSL()
+	}
+	outputFSRegistrar, err := io.NewS3Registrar(location, credentials.GetUsername(), credentials.GetPassword(), useSSL)
+	if err == nil {
+		r.outputFSRegistrar = outputFSRegistrar
+	}
+	return err
 }
 
 func fuse(scanners []*bufio.Scanner) ([]KVPair, error) {
@@ -201,5 +227,32 @@ func (r *Reducer) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Close
 }
 
 func (r *Reducer) PersistOutputData(task *proto.Task) error {
-	return nil
+	taskId := task.GetId()
+	if taskId == "" {
+		return status.Error(codes.InvalidArgument, "task id can't be empty")
+	}
+	creds := task.GetObjectStorageCreds()
+	if creds == nil {
+		return status.Error(codes.InvalidArgument, "can't find object storage credential info")
+	}
+	storageData := task.GetOutputStorageInfo()
+	if storageData == nil {
+		return status.Error(codes.InvalidArgument, "can't find storage location info")
+	}
+	if err := r.setOutputFSRegistrar(storageData, creds); err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	taskInfo := strings.Split(taskId, "-")
+	if len(taskInfo) != 2 {
+		return status.Error(codes.InvalidArgument, "task id format is wrong")
+	}
+	jobId := taskInfo[0]
+	reducerNumber := taskInfo[1]
+	buf, err := json.Marshal(KVPairArray{
+		Pairs: r.output,
+	})
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	return r.outputFSRegistrar.WriteFile(fmt.Sprintf("/reducers/%v/%v.json", jobId, reducerNumber), buf)
 }

@@ -8,6 +8,12 @@ message Task {
     Program program = 4;
     repeated FileData inputData = 5;
     Credentials objectStorageCreds = 6; 
+    optional OutputStorageInfo outputStorageInfo = 7;
+}
+
+message OutputStorageInfo {
+    string location = 1;
+    optional bool useSSL = 2;
 }
 
 message Credentials {

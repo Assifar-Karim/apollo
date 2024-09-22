@@ -2,6 +2,7 @@ package io
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -49,8 +50,26 @@ func (r S3Registrar) GetFile(fileData *proto.FileData) (*bufio.Scanner, Closeabl
 	return scanner, object, err
 }
 
-// TODO: Implement the S3 write logic
 func (r S3Registrar) WriteFile(path string, content []byte) error {
+	ctx := context.Background()
+	splittedPath := strings.Split(path, "/")[1:]
+	topBucket := splittedPath[0]
+	jobFolder := splittedPath[1]
+	filename := splittedPath[2]
+	exists, err := r.minioClient.BucketExists(ctx, topBucket)
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	if !exists {
+		err = r.minioClient.MakeBucket(ctx, topBucket, minio.MakeBucketOptions{})
+		if err != nil {
+			return status.Error(codes.Internal, err.Error())
+		}
+	}
+	_, err = r.minioClient.PutObject(ctx, topBucket, fmt.Sprintf("%v/%v", jobFolder, filename), bytes.NewReader(content), -1, minio.PutObjectOptions{})
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
 	return nil
 }
 
