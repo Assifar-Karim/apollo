@@ -24,6 +24,7 @@ type Reducer struct {
 	inputFSRegistrar  io.FSRegistrar
 	outputFSRegistrar io.FSRegistrar
 	output            []KVPair
+	logger            *utils.Logger
 }
 
 type OrderedKVPair struct {
@@ -124,6 +125,8 @@ func (r *Reducer) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 		return status.Error(codes.Internal, err.Error())
 	}
 	defer socket.Close()
+	r.logger.Info("listening on \033[33m/tmp/reduce.sock\033[0m socket")
+
 	output := make([]KVPair, len(pairs))
 
 	var producerGroup errgroup.Group
@@ -149,8 +152,10 @@ func (r *Reducer) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 			}
 			retry := 0
 			socketLocation := fmt.Sprintf("/tmp/reduce-input-%v.sock", order)
+			r.logger.Info("Trying to connect to %s socket", socketLocation)
 			fd, err := net.Dial("unix", socketLocation)
 			for err != nil && retry < 3 {
+				r.logger.Warn("Connection attempt %v to %s failed", retry, socketLocation)
 				fd, err = net.Dial("unix", socketLocation)
 				retry++
 				time.Sleep(time.Duration(retry*5) * time.Second)
@@ -206,6 +211,7 @@ func (r *Reducer) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Close
 	if capacity == 0 {
 		return nil, nil, status.Error(codes.InvalidArgument, "can't find input data to use for task")
 	}
+	r.logger.Info("Fetching the following input data: %v", inputData)
 	r.inputFSRegistrar = io.LocalFSRegistrar{}
 
 	scanners := []*bufio.Scanner{}
@@ -254,5 +260,13 @@ func (r *Reducer) PersistOutputData(task *proto.Task) error {
 	if err != nil {
 		return status.Error(codes.Internal, err.Error())
 	}
-	return r.outputFSRegistrar.WriteFile(fmt.Sprintf("/reducers/%v/%v.json", jobId, reducerNumber), buf)
+	path := fmt.Sprintf("/reducers/%v/%v.json", jobId, reducerNumber)
+	r.logger.Info("Persisting reducer %v to %v", taskId, path)
+	return r.outputFSRegistrar.WriteFile(path, buf)
+}
+
+func NewReducer() *Reducer {
+	return &Reducer{
+		logger: utils.GetLogger(),
+	}
 }

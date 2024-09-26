@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/Assifar-Karim/apollo/internal/proto"
+	"github.com/Assifar-Karim/apollo/internal/utils"
 	"github.com/Assifar-Karim/apollo/internal/worker"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,14 +16,17 @@ type TaskCreatorHandler struct {
 }
 
 func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator_StartTaskServer) error {
+	logger := utils.GetLogger()
 	workerType := task.GetType()
 	var workerAlgorithm worker.WorkerAlgorithm
 	var err error = nil
 
 	if workerType == 0 {
 		workerAlgorithm = worker.NewMapper()
+		logger.Info("Map task assigned")
 	} else if workerType == 1 {
-		workerAlgorithm = &worker.Reducer{}
+		workerAlgorithm = worker.NewReducer()
+		logger.Info("Reduce task assigned")
 	} else {
 		return status.Error(codes.InvalidArgument, "illegal worker type")
 	}
@@ -39,6 +43,7 @@ func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator
 	go func() {
 		defer wg.Done()
 		err = h.worker.TestWorkerType(task)
+		logger.Info("Task started")
 	}()
 
 	stream.Send(&proto.TaskStatusInfo{
@@ -53,11 +58,14 @@ func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator
 			TaskStatus:     "failed",
 			ResultingFiles: []*proto.FileData{},
 		})
+		logger.Error("Task failed")
+		logger.Error(err.Error())
 	} else {
 		stream.Send(&proto.TaskStatusInfo{
 			TaskStatus:     "completed",
 			ResultingFiles: []*proto.FileData{},
 		})
+		logger.Info("Task completed succesfully")
 	}
 	return err
 }

@@ -23,6 +23,7 @@ type Mapper struct {
 	inputFSRegistrar  io.FSRegistrar
 	outputFSRegistrar io.FSRegistrar
 	output            map[int][]KVPair
+	logger            *utils.Logger
 }
 
 type KVPairArray struct {
@@ -90,6 +91,8 @@ func (m *Mapper) HandleTask(task *proto.Task, input []*bufio.Scanner) error {
 		return status.Error(codes.Internal, err.Error())
 	}
 	defer socket.Close()
+	m.logger.Info("listening on \033[33m/tmp/map.sock\033[0m socket")
+
 	output := make(map[int][]KVPair)
 	endLine := ""
 	for idx, scanner := range input {
@@ -196,6 +199,7 @@ func (m *Mapper) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closea
 	if len(inputData) == 0 {
 		return nil, nil, status.Error(codes.InvalidArgument, "can't find input data to use for task")
 	}
+	m.logger.Info("Fetching the following input data: %v", inputData)
 	creds := task.GetObjectStorageCreds()
 	if creds == nil {
 		return nil, nil, status.Error(codes.InvalidArgument, "can't find object storage credential infos")
@@ -236,7 +240,9 @@ func (m *Mapper) PersistOutputData(task *proto.Task) error {
 			if err != nil {
 				return status.Error(codes.Internal, err.Error())
 			}
-			return m.outputFSRegistrar.WriteFile(fmt.Sprintf("/mappers/%v_%v.json", taskId, partitionKey), jsonPartition)
+			path := fmt.Sprintf("/mappers/%v_%v.json", taskId, partitionKey)
+			m.logger.Info("Persisting partition %v data to %v", partitionKey, path)
+			return m.outputFSRegistrar.WriteFile(path, jsonPartition)
 		})
 	}
 	return eg.Wait()
@@ -245,5 +251,6 @@ func (m *Mapper) PersistOutputData(task *proto.Task) error {
 func NewMapper() *Mapper {
 	return &Mapper{
 		outputFSRegistrar: io.LocalFSRegistrar{},
+		logger:            utils.GetLogger(),
 	}
 }

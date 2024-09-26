@@ -2,9 +2,11 @@ package server
 
 import (
 	"net"
+	"os"
 
 	"github.com/Assifar-Karim/apollo/internal/handler"
 	"github.com/Assifar-Karim/apollo/internal/proto"
+	"github.com/Assifar-Karim/apollo/internal/utils"
 	"google.golang.org/grpc"
 )
 
@@ -29,5 +31,11 @@ func NewGrpcServer(port string, taskCreatorHandler handler.TaskCreatorHandler) (
 }
 
 func (w WorkerGrpcSrv) Serve() error {
+	logger := utils.GetLogger()
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "localhost"
+	}
+	logger.Info("Worker Server Running: %s%s", hostname, w.port)
 	return w.concreteSrv.Serve(w.lis)
 }
