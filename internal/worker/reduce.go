@@ -232,25 +232,25 @@ func (r *Reducer) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Close
 	return scanners, closeables, nil
 }
 
-func (r *Reducer) PersistOutputData(task *proto.Task) error {
+func (r *Reducer) PersistOutputData(task *proto.Task) ([]*proto.FileData, error) {
 	taskId := task.GetId()
 	if taskId == "" {
-		return status.Error(codes.InvalidArgument, "task id can't be empty")
+		return nil, status.Error(codes.InvalidArgument, "task id can't be empty")
 	}
 	creds := task.GetObjectStorageCreds()
 	if creds == nil {
-		return status.Error(codes.InvalidArgument, "can't find object storage credential info")
+		return nil, status.Error(codes.InvalidArgument, "can't find object storage credential info")
 	}
 	storageData := task.GetOutputStorageInfo()
 	if storageData == nil {
-		return status.Error(codes.InvalidArgument, "can't find storage location info")
+		return nil, status.Error(codes.InvalidArgument, "can't find storage location info")
 	}
 	if err := r.setOutputFSRegistrar(storageData, creds); err != nil {
-		return status.Error(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	taskInfo := strings.Split(taskId, "-")
 	if len(taskInfo) != 2 {
-		return status.Error(codes.InvalidArgument, "task id format is wrong")
+		return nil, status.Error(codes.InvalidArgument, "task id format is wrong")
 	}
 	jobId := taskInfo[0]
 	reducerNumber := taskInfo[1]
@@ -258,11 +258,11 @@ func (r *Reducer) PersistOutputData(task *proto.Task) error {
 		Pairs: r.output,
 	})
 	if err != nil {
-		return status.Error(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	path := fmt.Sprintf("/reducers/%v/%v.json", jobId, reducerNumber)
 	r.logger.Info("Persisting reducer %v to %v", taskId, path)
-	return r.outputFSRegistrar.WriteFile(path, buf)
+	return []*proto.FileData{{Path: path}}, r.outputFSRegistrar.WriteFile(path, buf)
 }
 
 func NewReducer() *Reducer {

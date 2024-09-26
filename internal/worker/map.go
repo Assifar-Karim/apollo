@@ -222,13 +222,14 @@ func (m *Mapper) FetchInputData(task *proto.Task) ([]*bufio.Scanner, []io.Closea
 	return scanners, closeables, nil
 }
 
-func (m *Mapper) PersistOutputData(task *proto.Task) error {
+func (m *Mapper) PersistOutputData(task *proto.Task) ([]*proto.FileData, error) {
 	taskId := task.GetId()
 	if taskId == "" {
-		return status.Error(codes.InvalidArgument, "task id can't be empty")
+		return nil, status.Error(codes.InvalidArgument, "task id can't be empty")
 	}
 
 	var eg errgroup.Group
+	resultingFiles := make([]*proto.FileData, len(m.output))
 	for partitionKey, partition := range m.output {
 		partitionKey := partitionKey
 		partition := partition
@@ -242,10 +243,13 @@ func (m *Mapper) PersistOutputData(task *proto.Task) error {
 			}
 			path := fmt.Sprintf("/mappers/%v_%v.json", taskId, partitionKey)
 			m.logger.Info("Persisting partition %v data to %v", partitionKey, path)
+			resultingFiles[partitionKey] = &proto.FileData{
+				Path: path,
+			}
 			return m.outputFSRegistrar.WriteFile(path, jsonPartition)
 		})
 	}
-	return eg.Wait()
+	return resultingFiles, eg.Wait()
 }
 
 func NewMapper() *Mapper {

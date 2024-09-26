@@ -20,6 +20,7 @@ func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator
 	workerType := task.GetType()
 	var workerAlgorithm worker.WorkerAlgorithm
 	var err error = nil
+	var resultingFiles []*proto.FileData
 
 	if workerType == 0 {
 		workerAlgorithm = worker.NewMapper()
@@ -42,7 +43,7 @@ func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator
 
 	go func() {
 		defer wg.Done()
-		err = h.worker.TestWorkerType(task)
+		resultingFiles, err = h.worker.Compute(task)
 		logger.Info("Task started")
 	}()
 
@@ -63,7 +64,7 @@ func (h TaskCreatorHandler) StartTask(task *proto.Task, stream proto.TaskCreator
 	} else {
 		stream.Send(&proto.TaskStatusInfo{
 			TaskStatus:     "completed",
-			ResultingFiles: []*proto.FileData{},
+			ResultingFiles: resultingFiles,
 		})
 		logger.Info("Task completed succesfully")
 	}
