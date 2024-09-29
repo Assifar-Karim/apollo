@@ -5,3 +5,7 @@ generate_grpc_code:
 	--go-grpc_out=./internal \
 	--go-grpc_opt=paths=source_relative \
 	proto/msg.proto
+
+build_worker:generate_grpc_code
+	mkdir -p bin
+	go build -o bin/worker cmd/worker/main.go 
