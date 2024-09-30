@@ -3,6 +3,7 @@ module github.com/Assifar-Karim/apollo
 go 1.21
 
 require (
+	github.com/go-chi/chi/v5 v5.1.0
 	github.com/minio/minio-go/v7 v7.0.75
 	golang.org/x/sync v0.8.0
 	google.golang.org/grpc v1.65.0
