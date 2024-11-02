@@ -17,15 +17,15 @@ type Job struct {
 }
 
 type Task struct {
-	Id          string    `json:"id"`
-	Job         Job       `json:"job"`
-	Type        string    `json:"type"`
-	Status      string    `json:"status"`
-	ProgramPath string    `json:"programPath"`
-	InputData   InputData `json:"inputData"`
-	PodName     *string   `json:"podName,omitempty"`
-	StartTime   int64     `json:"startTime"`
-	EndTime     *int64    `json:"endTime,omitempty"`
+	Id        string    `json:"id"`
+	Job       Job       `json:"job"`
+	Type      string    `json:"type"`
+	Status    string    `json:"status"`
+	Program   Artifact  `json:"program"`
+	InputData InputData `json:"inputData"`
+	PodName   *string   `json:"podName,omitempty"`
+	StartTime int64     `json:"startTime"`
+	EndTime   *int64    `json:"endTime,omitempty"`
 }
 
 type InputData struct {
@@ -39,6 +39,13 @@ type InputData struct {
 type OutputLocation struct {
 	Location string `json:"location"`
 	UseSSL   bool   `json:"useSSL"`
+}
+
+type Artifact struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	Size int64  `json:"size"`
+	Hash string `json:"hash"`
 }
 
 func runInTx(db *sql.DB, fn func(tx *sql.Tx) error) error {
@@ -67,7 +74,7 @@ func New(driver, dbName string) (*sql.DB, error) {
 		return nil, err
 	}
 	// Setup DB tables
-	queries := make([]string, 4)
+	queries := make([]string, 5)
 
 	queries[0] = `CREATE TABLE IF NOT EXISTS output_location (
     location VARCHAR PRIMARY KEY NOT NULL,
@@ -90,7 +97,13 @@ func New(driver, dbName string) (*sql.DB, error) {
 	FOREIGN KEY(input_id) REFERENCES input_data(id),
 	FOREIGN KEY(output_path) REFERENCES output_location(location));`
 
-	queries[3] = `CREATE TABLE IF NOT EXISTS task (
+	queries[3] = `CREATE TABLE IF NOT EXISTS artifact (
+    name VARCHAR PRIMARY KEY NOT NULL,
+    type VARCHAR NOT NULL DEFAULT executable,
+    size INTEGER NOT NULL DEFAULT 0,
+	hash VARCHAR NOT NULL);`
+
+	queries[4] = `CREATE TABLE IF NOT EXISTS task (
     id VARCHAR PRIMARY KEY NOT NULL,
     job_id VARCHAR NOT NULL,
     type VARCHAR NOT NULL,
@@ -101,7 +114,8 @@ func New(driver, dbName string) (*sql.DB, error) {
     start_time DATETIME NOT NULL,
     end_time DATETIME,
     FOREIGN KEY(job_id) REFERENCES job(id),
-    FOREIGN KEY(input_data_id) REFERENCES input_data(id));`
+    FOREIGN KEY(input_data_id) REFERENCES input_data(id),
+	FOREIGN KEY(program_path) REFERENCES artifact(path));`
 
 	for _, query := range queries {
 		logger.Trace(query)

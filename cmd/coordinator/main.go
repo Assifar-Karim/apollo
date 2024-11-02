@@ -24,8 +24,11 @@ func main() {
 	}
 	jobRepository := db.NewSQLiteJobsRepository(database)
 	jobMetadataManager := coordinator.NewJobMetadataManager(jobRepository)
-	jobManagerHandler := handler.NewJobManagerHandler(jobMetadataManager)
-	httpServer, err := server.NewHttpServer(":4750", jobManagerHandler)
+	artifactRepository := db.NewSQLiteArtifactRepository(database)
+	artifactManager := coordinator.NewArtifactManager(artifactRepository)
+	jobManagerHandler := handler.NewJobManagerHandler(jobMetadataManager, artifactManager)
+	artifactHandler := handler.NewArtifactHandler(artifactManager)
+	httpServer, err := server.NewHttpServer(":4750", jobManagerHandler, artifactHandler)
 	if err != nil {
 		logger.Error("Can't create listener: %s", err)
 		os.Exit(1)

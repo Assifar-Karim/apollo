@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/Assifar-Karim/apollo/internal/coordinator"
+	"github.com/Assifar-Karim/apollo/internal/db"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	_ "modernc.org/sqlite"
@@ -14,14 +15,23 @@ import (
 
 type jobManagerHandler struct {
 	jobMetadataManager coordinator.JobMetadataManager
+	artifactManager    coordinator.ArtifactManager
 }
 
 type jobInfo struct {
-	NReducers  int    `json:"nReducers"`
-	InputPath  string `json:"inputPath"`
-	InputType  string `json:"inputType"`
-	OutputPath string `json:"outputPath"`
-	UseSSL     bool   `json:"useSSL"`
+	NReducers   int    `json:"nReducers"`
+	InputPath   string `json:"inputPath"`
+	InputType   string `json:"inputType"`
+	OutputPath  string `json:"outputPath"`
+	UseSSL      bool   `json:"useSSL"`
+	MapperName  string `json:"mapperName"`
+	ReducerName string `json:"reducerName"`
+}
+
+type ScheduleDTO struct {
+	Job           db.Job      `json:"job"`
+	MapProgram    db.Artifact `json:"mProgram"`
+	ReduceProgram db.Artifact `json:"rProgram"`
 }
 
 var allowedInputTypes []string = []string{"file/txt"}
@@ -75,14 +85,37 @@ func (h *jobManagerHandler) scheduleJob(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
+
+	artifactNames := []string{body.MapperName, body.ReducerName}
+	artifacts := make([]db.Artifact, 2)
+	for idx, name := range artifactNames {
+		artifact, err := h.artifactManager.GetArtifactDetailsByName(name)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if artifact == nil {
+			errMsg := fmt.Sprintf("%s artifact metadata can't be found!", name)
+			http.Error(w, errMsg, http.StatusNotFound)
+			return
+		}
+		artifacts[idx] = *artifact
+	}
+
 	job, err := h.jobMetadataManager.PersistJob(body.NReducers, body.InputPath, body.InputType, body.OutputPath, body.UseSSL)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	response := ScheduleDTO{
+		Job:           job,
+		MapProgram:    artifacts[0],
+		ReduceProgram: artifacts[1],
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	err = json.NewEncoder(w).Encode(job)
+	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -94,11 +127,14 @@ func (h *jobManagerHandler) stopJob(w http.ResponseWriter, r *http.Request) {
 	// TODO: Implement the job stopping logic
 }
 
-func NewJobManagerHandler(jobMetadataManager coordinator.JobMetadataManager) *Controller {
+func NewJobManagerHandler(
+	jobMetadataManager coordinator.JobMetadataManager,
+	artifactManager coordinator.ArtifactManager) *Controller {
 	router := chi.NewRouter()
 	router.Use(middleware.AllowContentType("application/json"))
 	handler := jobManagerHandler{
 		jobMetadataManager: jobMetadataManager,
+		artifactManager:    artifactManager,
 	}
 	// Endpoints definition
 	router.Get("/", handler.getJobs)
