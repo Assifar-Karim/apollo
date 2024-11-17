@@ -15,6 +15,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type Credentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type S3Registrar struct {
 	minioClient *minio.Client
 }
@@ -48,6 +53,14 @@ func (r S3Registrar) GetFile(fileData *proto.FileData) (*bufio.Scanner, Closeabl
 	}
 	scanner := utils.NewScanner(object)
 	return scanner, object, err
+}
+
+func (r S3Registrar) GetFileSize(bucket, filename string) (int64, error) {
+	stats, err := r.minioClient.StatObject(context.Background(), bucket, filename, minio.GetObjectOptions{})
+	if err != nil {
+		return 0, err
+	}
+	return stats.Size, nil
 }
 
 func (r S3Registrar) WriteFile(path string, content []byte) error {
