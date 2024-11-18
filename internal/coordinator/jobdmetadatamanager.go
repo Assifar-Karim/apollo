@@ -12,10 +12,12 @@ type JobMetadataManager interface {
 	PersistJob(nReducers int, inputPath, inputType, outputPath string, useSSL bool) (db.Job, error)
 	GetAllJobs() ([]db.Job, error)
 	GetJobById(id string) (*db.Job, error)
+	GetTasksByJobID(id string) ([]db.Task, error)
 }
 
 type JobMetadataMngmtSvc struct {
-	jobRepository db.JobRepository
+	jobRepository  db.JobRepository
+	taskRepository db.TaskRepository
 }
 
 func (s JobMetadataMngmtSvc) PersistJob(nReducers int, inputPath, inputType, outputPath string, useSSL bool) (db.Job, error) {
@@ -36,8 +38,13 @@ func (s JobMetadataMngmtSvc) GetJobById(id string) (*db.Job, error) {
 	return s.jobRepository.FetchJobByID(id)
 }
 
-func NewJobMetadataManager(jobRepository db.JobRepository) JobMetadataManager {
+func (s JobMetadataMngmtSvc) GetTasksByJobID(id string) ([]db.Task, error) {
+	return s.taskRepository.FetchTasksByJobID(id)
+}
+
+func NewJobMetadataManager(jobRepository db.JobRepository, taskRepository db.TaskRepository) JobMetadataManager {
 	return &JobMetadataMngmtSvc{
-		jobRepository: jobRepository,
+		jobRepository:  jobRepository,
+		taskRepository: taskRepository,
 	}
 }

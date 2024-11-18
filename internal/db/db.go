@@ -18,7 +18,7 @@ type Job struct {
 
 type Task struct {
 	Id        string    `json:"id"`
-	Job       Job       `json:"job"`
+	Job       *Job      `json:"job,omitempty"`
 	Type      string    `json:"type"`
 	Status    string    `json:"status"`
 	Program   Artifact  `json:"program"`
@@ -108,14 +108,14 @@ func New(driver, dbName string) (*sql.DB, error) {
     job_id VARCHAR NOT NULL,
     type VARCHAR NOT NULL,
     status VARCHAR NOT NULL DEFAULT scheduled,
-    program_path VARCHAR NOT NULL,
+    program_name VARCHAR NOT NULL,
     input_data_id INTEGER NOT NULL,
     pod_name VARCHAR,
     start_time DATETIME NOT NULL,
     end_time DATETIME,
     FOREIGN KEY(job_id) REFERENCES job(id),
     FOREIGN KEY(input_data_id) REFERENCES input_data(id),
-	FOREIGN KEY(program_path) REFERENCES artifact(path));`
+	FOREIGN KEY(program_name) REFERENCES artifact(name));`
 
 	for _, query := range queries {
 		logger.Trace(query)

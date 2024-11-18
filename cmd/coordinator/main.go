@@ -22,11 +22,18 @@ func main() {
 		logger.Error("Can't connect to database: %s", err)
 		os.Exit(1)
 	}
+	k8sClient, err := coordinator.NewK8sClient()
+	if err != nil {
+		logger.Error("Can't connect to the k8s cluster %s", err)
+		os.Exit(1)
+	}
 	jobRepository := db.NewSQLiteJobsRepository(database)
-	jobMetadataManager := coordinator.NewJobMetadataManager(jobRepository)
+	taskRepository := db.NewSQLiteTaskRepository(database)
+	jobMetadataManager := coordinator.NewJobMetadataManager(jobRepository, taskRepository)
 	artifactRepository := db.NewSQLiteArtifactRepository(database)
 	artifactManager := coordinator.NewArtifactManager(artifactRepository)
-	jobManagerHandler := handler.NewJobManagerHandler(jobMetadataManager, artifactManager)
+	jobScheduler := coordinator.NewJobScheduler(k8sClient, taskRepository)
+	jobManagerHandler := handler.NewJobManagerHandler(jobMetadataManager, artifactManager, jobScheduler)
 	artifactHandler := handler.NewArtifactHandler(artifactManager)
 	httpServer, err := server.NewHttpServer(":4750", jobManagerHandler, artifactHandler)
 	if err != nil {
