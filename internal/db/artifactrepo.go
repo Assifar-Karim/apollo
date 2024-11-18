@@ -36,7 +36,7 @@ func (r SQLiteArtifactRepository) CreateArtifact(name, artifactType, hash string
 }
 
 func (r SQLiteArtifactRepository) FetchArtifacts() ([]Artifact, error) {
-	query := "SELECT * FROM artifact;"
+	query := "SELECT name, type, size, hash FROM artifact;"
 	r.logger.Trace(query)
 	rows, err := r.db.Query(query)
 	if err != nil {
@@ -56,7 +56,7 @@ func (r SQLiteArtifactRepository) FetchArtifacts() ([]Artifact, error) {
 }
 
 func (r SQLiteArtifactRepository) FetchArficatByName(name string) (*Artifact, error) {
-	query := "SELECT * FROM artifact WHERE name = ?;"
+	query := "SELECT name, type, size, hash FROM artifact WHERE name = ?;"
 	r.logger.Trace(query)
 	row := r.db.QueryRow(query, name)
 	artifact := Artifact{}
