@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Assifar-Karim/apollo/internal/db"
+	"github.com/Assifar-Karim/apollo/internal/utils"
 	"github.com/google/uuid"
 )
 
@@ -18,11 +19,13 @@ type JobMetadataManager interface {
 type JobMetadataMngmtSvc struct {
 	jobRepository  db.JobRepository
 	taskRepository db.TaskRepository
+	logger         *utils.Logger
 }
 
 func (s JobMetadataMngmtSvc) PersistJob(nReducers int, inputPath, inputType, outputPath string, useSSL bool) (db.Job, error) {
 	uuid, err := uuid.NewV7()
 	if err != nil {
+		s.logger.Error(err.Error())
 		return db.Job{}, err
 	}
 	id := fmt.Sprintf("j-%s", uuid.String())
@@ -46,5 +49,6 @@ func NewJobMetadataManager(jobRepository db.JobRepository, taskRepository db.Tas
 	return &JobMetadataMngmtSvc{
 		jobRepository:  jobRepository,
 		taskRepository: taskRepository,
+		logger:         utils.GetLogger(),
 	}
 }

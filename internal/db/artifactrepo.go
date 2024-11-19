@@ -25,6 +25,7 @@ func (r SQLiteArtifactRepository) CreateArtifact(name, artifactType, hash string
 	r.logger.Trace(query)
 	_, err := r.db.Exec(query, name, artifactType, size, hash)
 	if err != nil {
+		r.logger.Error(err.Error())
 		return Artifact{}, err
 	}
 	return Artifact{
@@ -40,6 +41,7 @@ func (r SQLiteArtifactRepository) FetchArtifacts() ([]Artifact, error) {
 	r.logger.Trace(query)
 	rows, err := r.db.Query(query)
 	if err != nil {
+		r.logger.Error(err.Error())
 		return []Artifact{}, err
 	}
 	defer rows.Close()
@@ -48,6 +50,7 @@ func (r SQLiteArtifactRepository) FetchArtifacts() ([]Artifact, error) {
 		artifact := Artifact{}
 		err := rows.Scan(&artifact.Name, &artifact.Type, &artifact.Size, &artifact.Hash)
 		if err != nil {
+			r.logger.Error(err.Error())
 			return []Artifact{}, err
 		}
 		artifacts = append(artifacts, artifact)
@@ -63,9 +66,11 @@ func (r SQLiteArtifactRepository) FetchArficatByName(name string) (*Artifact, er
 	err := row.Scan(&artifact.Name, &artifact.Type, &artifact.Size, &artifact.Hash)
 
 	if errors.Is(err, sql.ErrNoRows) {
+		r.logger.Warn("No artifact with name %s was found", name)
 		return nil, nil
 	}
 	if err != nil {
+		r.logger.Error(err.Error())
 		return nil, err
 	}
 
@@ -77,10 +82,12 @@ func (r SQLiteArtifactRepository) DeleteArtifact(name string) (bool, error) {
 	r.logger.Trace(query)
 	res, err := r.db.Exec(query, name)
 	if err != nil {
+		r.logger.Error(err.Error())
 		return false, err
 	}
 	count, err := res.RowsAffected()
 	if err != nil {
+		r.logger.Error(err.Error())
 		return false, err
 	}
 	return count != 0, nil
@@ -95,6 +102,7 @@ func (r SQLiteArtifactRepository) UpdateArtifact(name, hash string, size int64) 
 	}
 	artifact, err := r.FetchArficatByName(name)
 	if err != nil {
+		r.logger.Error(err.Error())
 		return Artifact{}, err
 	}
 	if artifact == nil {

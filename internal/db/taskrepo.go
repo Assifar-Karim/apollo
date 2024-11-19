@@ -76,6 +76,7 @@ func (r *SQLiteTaskRepository) CreateTasksBatch(jobId, taskType string,
 		return err
 	}
 	if err := runInTx(r.db, transactionLogic); err != nil {
+		r.logger.Error(err.Error())
 		return []Task{}, err
 	}
 	return tasks, nil
@@ -93,6 +94,7 @@ func (r *SQLiteTaskRepository) FetchTasksByJobID(jobId string) ([]Task, error) {
 	r.logger.Trace(query)
 	rows, err := r.db.Query(query, jobId)
 	if err != nil {
+		r.logger.Error(err.Error())
 		return []Task{}, err
 	}
 	defer rows.Close()
@@ -119,6 +121,7 @@ func (r *SQLiteTaskRepository) FetchTasksByJobID(jobId string) ([]Task, error) {
 			&inputData.SplitEnd)
 
 		if err != nil {
+			r.logger.Error(err.Error())
 			return []Task{}, err
 		}
 		task.InputData = inputData

@@ -45,10 +45,13 @@ func (s JobSchedulingSvc) ScheduleJob(
 	} else if protocol == "https:" {
 		useSSL = true
 	} else {
-		return nil, fmt.Errorf("wrong protocol, please make sure the protocol is either HTTP or HTTPS")
+		errMsg := "wrong protocol, please make sure the protocol is either HTTP or HTTPS"
+		s.logger.Error("Wrong input data protocol found for job %s -> %s", job.Id, errMsg)
+		return nil, fmt.Errorf(errMsg)
 	}
 	s3Registrar, err := io.NewS3Registrar(endpoint, creds[0].Username, creds[0].Password, useSSL)
 	if err != nil {
+		s.logger.Error(err.Error())
 		return nil, err
 	}
 	bucket := pathInfo[len(pathInfo)-2]
@@ -56,6 +59,7 @@ func (s JobSchedulingSvc) ScheduleJob(
 
 	filesize, err := s3Registrar.GetFileSize(bucket, filename)
 	if err != nil {
+		s.logger.Error(err.Error())
 		return nil, err
 	}
 
@@ -85,6 +89,9 @@ func (s JobSchedulingSvc) ScheduleJob(
 	}
 
 	nMapper := len(splits)
+	s.logger.Info("Input file %s of size %s B generated %v of maximum size %v",
+		job.InputData.Path, filesize, nMapper, concreteSplitSize)
+
 	podDefinition := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "worker-",
@@ -122,7 +129,7 @@ func (s JobSchedulingSvc) ScheduleJob(
 			return nil, err
 		}
 		pods[i] = pod.Name
-		s.logger.Info("worker pod %s was successfully created for job %s", pod.Name, job.Id)
+		s.logger.Info("worker pod %s was successfully created for job %s and task %s", pod.Name, job.Id, taskId)
 	}
 
 	tasks, err := s.taskRepository.CreateTasksBatch(job.Id, "mapper", pods, splits,

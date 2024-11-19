@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/Assifar-Karim/apollo/internal/db"
+	"github.com/Assifar-Karim/apollo/internal/utils"
 )
 
 type ArtifactManager interface {
@@ -21,6 +22,7 @@ type ArtifactManager interface {
 type ArtifactMngmtSvc struct {
 	artifactRepository db.ArtifactRepository
 	config             *Config
+	logger             *utils.Logger
 }
 
 func hash(file multipart.File) (string, error) {
@@ -48,6 +50,7 @@ func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int
 	path := fmt.Sprintf("%s/%s", s.config.GetArtifactsPath(), filename)
 	fileHash, err := hash(file)
 	if err != nil {
+		s.logger.Error(err.Error())
 		return db.Artifact{}, err
 	}
 	artifact, err := s.artifactRepository.FetchArficatByName(filename)
@@ -56,6 +59,7 @@ func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int
 	}
 	if artifact == nil {
 		if err = writeFile(path, file); err != nil {
+			s.logger.Error(err.Error())
 			return db.Artifact{}, err
 		}
 		return s.artifactRepository.CreateArtifact(filename, artifactType, fileHash, size)
@@ -66,6 +70,7 @@ func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int
 	}
 
 	if err = writeFile(path, file); err != nil {
+		s.logger.Error(err.Error())
 		return db.Artifact{}, err
 	}
 
@@ -83,9 +88,11 @@ func (s ArtifactMngmtSvc) GetArtifactDetailsByName(filename string) (*db.Artifac
 func (s ArtifactMngmtSvc) DeleteArtifact(filename string) (bool, error) {
 	path := fmt.Sprintf("%s/%s", s.config.artifactsPath, filename)
 	if _, err := os.Stat(path); err != nil {
+		s.logger.Error(err.Error())
 		return false, err
 	}
 	if err := os.Remove(path); err != nil {
+		s.logger.Error(err.Error())
 		return false, err
 	}
 	return s.artifactRepository.DeleteArtifact(filename)
@@ -95,5 +102,6 @@ func NewArtifactManager(artifactRepository db.ArtifactRepository) ArtifactManage
 	return &ArtifactMngmtSvc{
 		artifactRepository: artifactRepository,
 		config:             GetConfig(),
+		logger:             utils.GetLogger(),
 	}
 }

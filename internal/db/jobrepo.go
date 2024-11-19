@@ -54,6 +54,7 @@ func (r *SQLiteJobRepository) CreateJob(
 	}
 
 	if err := runInTx(r.db, transactionLogic); err != nil {
+		r.logger.Error(err.Error())
 		return Job{}, err
 	}
 
@@ -105,6 +106,7 @@ func (r *SQLiteJobRepository) FetchJobs() ([]Job, error) {
 			&job.EndTime)
 
 		if err != nil {
+			r.logger.Error(err.Error())
 			return []Job{}, err
 		}
 
@@ -142,9 +144,11 @@ func (r *SQLiteJobRepository) FetchJobByID(id string) (*Job, error) {
 		&job.EndTime)
 
 	if errors.Is(err, sql.ErrNoRows) {
+		r.logger.Warn("No job with id %s was found", id)
 		return nil, nil
 	}
 	if err != nil {
+		r.logger.Error(err.Error())
 		return nil, err
 	}
 	job.InputData = inputData
