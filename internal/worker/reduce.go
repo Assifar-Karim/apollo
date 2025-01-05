@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ import (
 type Reducer struct {
 	inputFSRegistrar  io.FSRegistrar
 	outputFSRegistrar io.FSRegistrar
+	idRegs            []*regexp.Regexp
 	output            []KVPair
 	logger            *utils.Logger
 }
@@ -248,12 +250,14 @@ func (r *Reducer) PersistOutputData(task *proto.Task) ([]*proto.FileData, error)
 	if err := r.setOutputFSRegistrar(storageData, creds); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	taskInfo := strings.Split(taskId, "-")
-	if len(taskInfo) != 2 {
+	jobIdLoc := r.idRegs[0].FindStringIndex(taskId)
+	reducerNumGroups := r.idRegs[1].FindStringSubmatch(taskId)
+	rNumIdx := r.idRegs[1].SubexpIndex("reducer")
+	if jobIdLoc == nil || reducerNumGroups == nil || rNumIdx == -1 {
 		return nil, status.Error(codes.InvalidArgument, "task id format is wrong")
 	}
-	jobId := taskInfo[0]
-	reducerNumber := taskInfo[1]
+	jobId := taskId[jobIdLoc[0]:jobIdLoc[1]]
+	reducerNumber := reducerNumGroups[rNumIdx]
 	buf, err := json.Marshal(KVPairArray{
 		Pairs: r.output,
 	})
@@ -267,6 +271,10 @@ func (r *Reducer) PersistOutputData(task *proto.Task) ([]*proto.FileData, error)
 
 func NewReducer() *Reducer {
 	return &Reducer{
+		idRegs: []*regexp.Regexp{
+			regexp.MustCompile(`j-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}`),
+			regexp.MustCompile(`(?:j-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}-r-)(?P<reducer>\d+)`),
+		},
 		logger: utils.GetLogger(),
 	}
 }
