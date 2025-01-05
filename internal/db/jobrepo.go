@@ -11,6 +11,7 @@ type JobRepository interface {
 	CreateJob(nReducers int, startTime int64, id, inputPath, inputType, outputPath string, useSSL bool) (Job, error)
 	FetchJobs() ([]Job, error)
 	FetchJobByID(id string) (*Job, error)
+	UpdateJobEndTimeByID(id string, endTs int64) error
 }
 
 type SQLiteJobRepository struct {
@@ -155,6 +156,13 @@ func (r *SQLiteJobRepository) FetchJobByID(id string) (*Job, error) {
 	job.OutputLocation = outputLocation
 	return &job, nil
 
+}
+
+func (r *SQLiteJobRepository) UpdateJobEndTimeByID(id string, endTs int64) error {
+	query := "UPDATE job SET end_time = ? WHERE id = ?;"
+	r.logger.Trace(query)
+	_, err := r.db.Exec(query, endTs, id)
+	return err
 }
 
 func NewSQLiteJobsRepository(db *sql.DB) JobRepository {

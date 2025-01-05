@@ -37,7 +37,6 @@ type ScheduleDTO struct {
 	Job           db.Job      `json:"job"`
 	MapProgram    db.Artifact `json:"mProgram"`
 	ReduceProgram db.Artifact `json:"rProgram"`
-	Tasks         []db.Task   `json:"tasks"`
 }
 
 var allowedInputTypes []string = []string{"file/txt"}
@@ -115,17 +114,18 @@ func (h *jobManagerHandler) scheduleJob(w http.ResponseWriter, r *http.Request) 
 	}
 
 	creds := []io.Credentials{body.InputStorageCredentials, body.OutputStorageCredentials}
-	tasks, err := h.jobScheduler.ScheduleJob(job, artifacts, creds, body.SplitSize)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	go func() {
+		_, err := h.jobScheduler.ScheduleJob(job, artifacts, creds, body.SplitSize)
+		if err == nil {
+			h.jobMetadataManager.SetJobEndTimestamp(job.Id)
+		}
+	}()
+
 	// NOTE (KARIM): Add a way to save the credentials in a vault later for restarting jobs in case of failure
 	response := ScheduleDTO{
 		Job:           job,
 		MapProgram:    artifacts[0],
 		ReduceProgram: artifacts[1],
-		Tasks:         tasks,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

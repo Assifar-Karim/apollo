@@ -3,6 +3,7 @@ package coordinator
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -12,11 +13,13 @@ import (
 var lock = &sync.Mutex{}
 
 type Config struct {
-	artifactsPath  string
-	splitSize      int64
-	kubeConfigPath string
-	workerNS       string
-	workerImg      string
+	devMode              bool
+	artifactsPath        string
+	splitSize            int64
+	kubeConfigPath       string
+	workerNS             string
+	workerImg            string
+	intermediateFilesLoc string
 }
 
 var configInstance *Config
@@ -25,6 +28,11 @@ func GetConfig() *Config {
 	if configInstance == nil {
 		lock.Lock()
 		defer lock.Unlock()
+		args := os.Args[1:]
+		devMode := false
+		if slices.Contains(args, "--dev") {
+			devMode = true
+		}
 		artifactsPath, exists := os.LookupEnv("ARTIFACTS_PATH")
 		if !exists {
 			artifactsPath = "/coordinator/artifacts"
@@ -63,19 +71,32 @@ func GetConfig() *Config {
 
 		workerImg, exists := os.LookupEnv("WORKER_IMG")
 		if !exists {
-			workerImg = "hello-world:latest" // TODO: Change with the actual worker image that will be uploaded later down the line
+			workerImg = "localhost:5000/worker:log-4" // TODO: Change with the actual worker image that will be uploaded later down the line
 		}
 
+		intermediateFilesLoc, exists := os.LookupEnv("INT_FILES_LOC")
+		if !exists {
+			intermediateFilesLoc = "/apollo/intermediate-files"
+		}
+		if intermediateFilesLoc[len(intermediateFilesLoc)-1] == '/' {
+			intermediateFilesLoc = intermediateFilesLoc[:len(intermediateFilesLoc)-1]
+		}
 		configInstance = &Config{
-			artifactsPath:  artifactsPath,
-			splitSize:      splitSize,
-			kubeConfigPath: kubeConfigPath,
-			workerNS:       workerNS,
-			workerImg:      workerImg,
+			devMode:              devMode,
+			artifactsPath:        artifactsPath,
+			splitSize:            splitSize,
+			kubeConfigPath:       kubeConfigPath,
+			workerNS:             workerNS,
+			workerImg:            workerImg,
+			intermediateFilesLoc: intermediateFilesLoc,
 		}
 
 	}
 	return configInstance
+}
+
+func (c *Config) isInDevMode() bool {
+	return c.devMode
 }
 
 func (c *Config) GetArtifactsPath() string {
@@ -96,4 +117,8 @@ func (c *Config) GetWorkerNS() string {
 
 func (c *Config) GetWorkerImg() string {
 	return c.workerImg
+}
+
+func (c *Config) GetIntermediateFilesLoc() string {
+	return c.intermediateFilesLoc
 }

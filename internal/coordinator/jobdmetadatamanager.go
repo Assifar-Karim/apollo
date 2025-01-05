@@ -14,6 +14,7 @@ type JobMetadataManager interface {
 	GetAllJobs() ([]db.Job, error)
 	GetJobById(id string) (*db.Job, error)
 	GetTasksByJobID(id string) ([]db.Task, error)
+	SetJobEndTimestamp(id string) error
 }
 
 type JobMetadataMngmtSvc struct {
@@ -43,6 +44,10 @@ func (s JobMetadataMngmtSvc) GetJobById(id string) (*db.Job, error) {
 
 func (s JobMetadataMngmtSvc) GetTasksByJobID(id string) ([]db.Task, error) {
 	return s.taskRepository.FetchTasksByJobID(id)
+}
+
+func (s JobMetadataMngmtSvc) SetJobEndTimestamp(id string) error {
+	return s.jobRepository.UpdateJobEndTimeByID(id, time.Now().Unix())
 }
 
 func NewJobMetadataManager(jobRepository db.JobRepository, taskRepository db.TaskRepository) JobMetadataManager {

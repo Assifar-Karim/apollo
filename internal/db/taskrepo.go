@@ -10,6 +10,8 @@ import (
 type TaskRepository interface {
 	CreateTasksBatch(jobId, taskType string, pods []string, inputs []InputData, program Artifact, startTime int64, count int) ([]Task, error)
 	FetchTasksByJobID(jobId string) ([]Task, error)
+	UpdateTaskStatusByID(id, status string) error
+	UpdateTaskEndTimeByID(id string, endTs int64) error
 }
 
 type SQLiteTaskRepository struct {
@@ -22,32 +24,33 @@ func (r *SQLiteTaskRepository) CreateTasksBatch(jobId, taskType string,
 
 	tasks := make([]Task, count)
 	transactionLogic := func(tx *sql.Tx) error {
+		if len(inputs) > 0 {
+			query := `INSERT INTO input_data (id, path, type, split_start, split_end) VALUES `
+			queryParams := []any{}
+			for _, inputData := range inputs {
+				queryParams = append(queryParams, inputData.Path, inputData.Type, inputData.SplitStart, inputData.SplitEnd)
+				query += `(NULL, ?, ?, ?, ?),`
+			}
+			query = query[:len(query)-1] + ";"
+			r.logger.Trace(query)
+			res, err := tx.Exec(query, queryParams...)
+			if err != nil {
+				return err
+			}
+			lastInputId, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			offset := int(lastInputId) - len(inputs) + 1
+			for i := range inputs {
+				inputs[i].Id = offset + i
+			}
+		}
 
-		query := `INSERT INTO input_data (id, path, type, split_start, split_end) VALUES `
-		queryParams := []any{}
-		for _, inputData := range inputs {
-			queryParams = append(queryParams, inputData.Path, inputData.Type, inputData.SplitStart, inputData.SplitEnd)
-			query += `(NULL, ?, ?, ?, ?),`
-		}
-		query = query[:len(query)-1] + ";"
-		r.logger.Trace(query)
-		res, err := tx.Exec(query, queryParams...)
-		if err != nil {
-			return err
-		}
-		lastInputId, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		offset := int(lastInputId) - len(inputs) + 1
-		for i := range inputs {
-			inputs[i].Id = offset + i
-		}
-
-		query = `INSERT INTO task (
+		query := `INSERT INTO task (
 		id, job_id, type, program_name, input_data_id,
 		pod_name, start_time, end_time) VALUES `
-		queryParams = []any{}
+		queryParams := []any{}
 		for i := 0; i < count; i++ {
 			id := fmt.Sprintf("%s-%c-%v", jobId, taskType[0], i)
 			task := Task{
@@ -55,24 +58,35 @@ func (r *SQLiteTaskRepository) CreateTasksBatch(jobId, taskType string,
 				Type:      taskType,
 				Status:    "scheduled",
 				Program:   program,
-				InputData: inputs[i],
 				PodName:   &pods[i],
 				StartTime: startTime,
 			}
+			if len(inputs) > 0 {
+				task.InputData = &inputs[i]
+				queryParams = append(queryParams,
+					task.Id,
+					jobId,
+					task.Type,
+					program.Name,
+					task.InputData.Id,
+					*task.PodName,
+					task.StartTime)
+				query += `(?, ?, ?, ?, ?, ?, ?, NULL),`
+			} else {
+				queryParams = append(queryParams,
+					task.Id,
+					jobId,
+					task.Type,
+					program.Name,
+					*task.PodName,
+					task.StartTime)
+				query += `(?, ?, ?, ?, NULL, ?, ?, NULL),`
+			}
 			tasks[i] = task
-			queryParams = append(queryParams,
-				task.Id,
-				jobId,
-				task.Type,
-				program.Name,
-				task.InputData.Id,
-				*task.PodName,
-				task.StartTime)
-			query += `(?, ?, ?, ?, ?, ?, ?, NULL),`
 		}
 		query = query[:len(query)-1] + ";"
 		r.logger.Trace(query)
-		_, err = tx.Exec(query, queryParams...)
+		_, err := tx.Exec(query, queryParams...)
 		return err
 	}
 	if err := runInTx(r.db, transactionLogic); err != nil {
@@ -88,7 +102,7 @@ func (r *SQLiteTaskRepository) FetchTasksByJobID(jobId string) ([]Task, error) {
 	i.id, i.path, i.type, i.split_start, i.split_end
 	FROM task t 
 	JOIN artifact a ON a.name = t.program_name
-	JOIN input_data i ON i.id = t.input_data_id
+	LEFT OUTER JOIN input_data i ON i.id = t.input_data_id
 	WHERE t.job_id = ?;`
 
 	r.logger.Trace(query)
@@ -103,6 +117,9 @@ func (r *SQLiteTaskRepository) FetchTasksByJobID(jobId string) ([]Task, error) {
 		task := Task{}
 		inputData := InputData{}
 		artifact := Artifact{}
+		// input data scan verification vars
+		var iId sql.NullInt32
+		var iPath, iType sql.NullString
 		err := rows.Scan(
 			&task.Id,
 			&task.Type,
@@ -114,9 +131,9 @@ func (r *SQLiteTaskRepository) FetchTasksByJobID(jobId string) ([]Task, error) {
 			&artifact.Type,
 			&artifact.Size,
 			&artifact.Hash,
-			&inputData.Id,
-			&inputData.Path,
-			&inputData.Type,
+			&iId,
+			&iPath,
+			&iType,
 			&inputData.SplitStart,
 			&inputData.SplitEnd)
 
@@ -124,11 +141,32 @@ func (r *SQLiteTaskRepository) FetchTasksByJobID(jobId string) ([]Task, error) {
 			r.logger.Error(err.Error())
 			return []Task{}, err
 		}
-		task.InputData = inputData
+
+		if iId.Valid && iPath.Valid && iType.Valid {
+			inputData.Id = int(iId.Int32)
+			inputData.Path = iPath.String
+			inputData.Type = iType.String
+			task.InputData = &inputData
+		}
+
 		task.Program = artifact
 		tasks = append(tasks, task)
 	}
 	return tasks, nil
+}
+
+func (r *SQLiteTaskRepository) UpdateTaskStatusByID(id, status string) error {
+	query := "UPDATE task SET status = ? WHERE id = ?;"
+	r.logger.Trace(query)
+	_, err := r.db.Exec(query, status, id)
+	return err
+}
+
+func (r *SQLiteTaskRepository) UpdateTaskEndTimeByID(id string, endTs int64) error {
+	query := "UPDATE task SET end_time = ? WHERE id = ?;"
+	r.logger.Trace(query)
+	_, err := r.db.Exec(query, endTs, id)
+	return err
 }
 
 func NewSQLiteTaskRepository(db *sql.DB) TaskRepository {

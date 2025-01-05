@@ -3,6 +3,9 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 
 	"github.com/Assifar-Karim/apollo/internal/utils"
 )
@@ -17,15 +20,15 @@ type Job struct {
 }
 
 type Task struct {
-	Id        string    `json:"id"`
-	Job       *Job      `json:"job,omitempty"`
-	Type      string    `json:"type"`
-	Status    string    `json:"status"`
-	Program   Artifact  `json:"program"`
-	InputData InputData `json:"inputData"`
-	PodName   *string   `json:"podName,omitempty"`
-	StartTime int64     `json:"startTime"`
-	EndTime   *int64    `json:"endTime,omitempty"`
+	Id        string     `json:"id"`
+	Job       *Job       `json:"job,omitempty"`
+	Type      string     `json:"type"`
+	Status    string     `json:"status"`
+	Program   Artifact   `json:"program"`
+	InputData *InputData `json:"inputData,omitempty"`
+	PodName   *string    `json:"podName,omitempty"`
+	StartTime int64      `json:"startTime"`
+	EndTime   *int64     `json:"endTime,omitempty"`
 }
 
 type InputData struct {
@@ -109,7 +112,7 @@ func New(driver, dbName string) (*sql.DB, error) {
     type VARCHAR NOT NULL,
     status VARCHAR NOT NULL DEFAULT scheduled,
     program_name VARCHAR NOT NULL,
-    input_data_id INTEGER NOT NULL,
+    input_data_id INTEGER,
     pod_name VARCHAR,
     start_time DATETIME NOT NULL,
     end_time DATETIME,
@@ -125,4 +128,33 @@ func New(driver, dbName string) (*sql.DB, error) {
 		}
 	}
 	return db, err
+}
+
+func (t Task) GetType() (int64, error) {
+	taskType := strings.ToLower(t.Type)
+	if taskType == "mapper" {
+		return 0, nil
+	} else if taskType == "reducer" {
+		return 1, nil
+	}
+	return -1, fmt.Errorf("%s isn't supported by apollo", taskType)
+}
+
+func (t Task) GetProgramContent(origin string) ([]byte, error) {
+	path := fmt.Sprintf("%s/%s", origin, t.Program.Name)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	fInfo, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	buffer := make([]byte, fInfo.Size())
+	_, err = file.Read(buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer, nil
 }

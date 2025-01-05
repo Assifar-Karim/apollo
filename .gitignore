@@ -3,3 +3,4 @@ internal/proto/
 bin
 queries/
 *.db
+manifests_temp/
