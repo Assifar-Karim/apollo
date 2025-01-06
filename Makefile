@@ -9,3 +9,6 @@ generate_grpc_code:
 build_worker:generate_grpc_code
 	mkdir -p bin
 	go build -o bin/worker cmd/worker/main.go 
+build_coordinator:generate_grpc_code
+	mkdir -p bin
+	go build -o bin/coordinator cmd/coordinator/main.go
