@@ -1,0 +1,88 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apollo-workers
+  labels:
+    name: apollo-workers
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: apollo-intermediate-files-pvc
+  namespace: apollo-workers
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coordinator
+  namespace: apollo-workers
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  ports:
+    - port: 4750
+  selector:
+    app: coordinator
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: coordinator
+  namespace: apollo-workers
+spec:
+  selector:
+    matchLabels:
+      app: coordinator
+  serviceName: coordinator
+  replicas: 1
+  template:
+    metadata:
+      namespace: coordinator
+      labels:
+        app: coordinator
+    spec:
+      containers:
+        - name: coordinator
+          image: localhost:5000/apollo:coordinator
+          ports:
+            - containerPort: 4750
+          volumeMounts:
+            - name: data
+              mountPath: /apollo/data
+            - name: artifacts
+              mountPath: /coordinator/artifacts
+          env:
+            - name: COORDINATOR_OPTS
+              value: "--trace"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        namespace: apollo-workers
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: artifacts
+        namespace: apollo-workers
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
+    
+
+  
