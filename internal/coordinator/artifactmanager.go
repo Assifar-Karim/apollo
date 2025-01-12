@@ -25,21 +25,24 @@ type ArtifactMngmtSvc struct {
 	logger             *utils.Logger
 }
 
-func hash(file multipart.File) (string, error) {
+func getFileContent(file multipart.File) ([]byte, error) {
+	buffer := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buffer, file); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+func hash(buf []byte) (string, error) {
 	h := sha256.New()
-	if _, err := io.Copy(h, file); err != nil {
-		return "", err
+	if _, err := h.Write(buf); err != nil {
+		return "", nil
 	}
 
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-func writeFile(path string, file multipart.File) error {
-	buffer := bytes.NewBuffer(nil)
-	if _, err := io.Copy(buffer, file); err != nil {
-		return err
-	}
-	fileContent := buffer.Bytes()
+func writeFile(path string, fileContent []byte) error {
 	if err := os.WriteFile(path, fileContent, 0666); err != nil {
 		return err
 	}
@@ -48,7 +51,12 @@ func writeFile(path string, file multipart.File) error {
 
 func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int64, file multipart.File) (db.Artifact, error) {
 	path := fmt.Sprintf("%s/%s", s.config.GetArtifactsPath(), filename)
-	fileHash, err := hash(file)
+	fileContent, err := getFileContent(file)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return db.Artifact{}, err
+	}
+	fileHash, err := hash(fileContent)
 	if err != nil {
 		s.logger.Error(err.Error())
 		return db.Artifact{}, err
@@ -58,7 +66,7 @@ func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int
 		return db.Artifact{}, err
 	}
 	if artifact == nil {
-		if err = writeFile(path, file); err != nil {
+		if err = writeFile(path, fileContent); err != nil {
 			s.logger.Error(err.Error())
 			return db.Artifact{}, err
 		}
@@ -69,7 +77,7 @@ func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int
 		return *artifact, nil
 	}
 
-	if err = writeFile(path, file); err != nil {
+	if err = writeFile(path, fileContent); err != nil {
 		s.logger.Error(err.Error())
 		return db.Artifact{}, err
 	}
