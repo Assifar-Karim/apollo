@@ -10,7 +10,7 @@ func NewK8sClient() (*kubernetes.Clientset, error) {
 	var config *rest.Config
 	var err error
 	appConfig := GetConfig()
-	if appConfig.isInDevMode() {
+	if appConfig.IsInDevMode() {
 		kubeConfigPath := GetConfig().GetKubeConfigPath()
 		config, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	} else {

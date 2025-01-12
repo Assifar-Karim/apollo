@@ -17,7 +17,7 @@ func main() {
 	logger := utils.GetLogger()
 	logger.PrintBanner()
 	logger.Info("Startup completed in %v", time.Since(startTime))
-	database, err := db.New("sqlite", "coordinator.db")
+	database, err := db.New("sqlite", "coordinator.db", coordinator.GetConfig().IsInDevMode())
 	if err != nil {
 		logger.Error("Can't connect to database: %s", err)
 		os.Exit(1)

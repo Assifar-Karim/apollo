@@ -68,9 +68,12 @@ func runInTx(db *sql.DB, fn func(tx *sql.Tx) error) error {
 	return err
 }
 
-func New(driver, dbName string) (*sql.DB, error) {
+func New(driver, dbName string, devMode bool) (*sql.DB, error) {
 	logger := utils.GetLogger()
 	// Open DB connection
+	if !devMode {
+		dbName = fmt.Sprintf("/apollo/data/%s", dbName)
+	}
 	logger.Info("Connecting to %s:%s database", driver, dbName)
 	db, err := sql.Open(driver, dbName)
 	if err != nil {

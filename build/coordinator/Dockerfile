@@ -39,6 +39,7 @@ RUN addgroup --gid 4010 apollo && \
 
 USER apollo:apollo
 WORKDIR /apollo
+RUN mkdir -p data
 COPY  --chown=apollo:apollo --from=Build /apollo/bin/coordinator coordinator
 EXPOSE 4750
 

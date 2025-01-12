@@ -131,7 +131,7 @@ func (s JobSchedulingSvc) createWorkerPods(jobId, wType, programPath, mountPath 
 	pods := make([]string, nSize)
 	for i := 0; i < nSize; i++ {
 		taskId := fmt.Sprintf("%s-%c-%v", jobId, wType[0], i)
-		if s.config.isInDevMode() {
+		if s.config.IsInDevMode() {
 			// Create a service for external communication with the coordinator on dev mode
 			servicePort, err := generateDevModeServicePort(taskId)
 			if err != nil {
@@ -200,7 +200,7 @@ func (s JobSchedulingSvc) generateMapInputSplits(path, jobId, wType, username, p
 		return nil, fmt.Errorf(errMsg)
 	}
 
-	if s.config.isInDevMode() {
+	if s.config.IsInDevMode() {
 		endpoint = regexp.MustCompile(`(.)*:`).ReplaceAllString(endpoint, "localhost:")
 	}
 	s3Registrar, err := coreio.NewS3Registrar(endpoint, username, password, useSSL)
@@ -350,7 +350,7 @@ func (s JobSchedulingSvc) coordinateReduceTasks(tasks []db.Task, nMapper int, cr
 
 func (s JobSchedulingSvc) startTask(target string, task *proto.Task) error {
 	target = fmt.Sprintf("%s:8090", target)
-	if s.config.isInDevMode() {
+	if s.config.IsInDevMode() {
 		port, err := generateDevModeServicePort(task.GetId())
 		if err != nil {
 			return err

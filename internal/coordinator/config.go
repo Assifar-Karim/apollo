@@ -95,7 +95,7 @@ func GetConfig() *Config {
 	return configInstance
 }
 
-func (c *Config) isInDevMode() bool {
+func (c *Config) IsInDevMode() bool {
 	return c.devMode
 }
 
