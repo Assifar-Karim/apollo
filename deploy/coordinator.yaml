@@ -7,6 +7,47 @@ metadata:
     name: apollo-workers
 ---
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apollo-coordinator
+  namespace: apollo-workers
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coordinator-role
+  namespace: apollo-workers
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coordinator-role-binding
+  namespace: apollo-workers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coordinator-role
+subjects:
+  - namespace: apollo-workers
+    kind: ServiceAccount
+    name: apollo-coordinator
+---  
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: apollo-intermediate-files-pvc
@@ -45,13 +86,15 @@ spec:
   replicas: 1
   template:
     metadata:
-      namespace: coordinator
+      namespace: apollo-workers
       labels:
         app: coordinator
     spec:
+      serviceAccountName: apollo-coordinator
       containers:
         - name: coordinator
           image: localhost:5000/apollo:coordinator
+          imagePullPolicy: Always
           ports:
             - containerPort: 4750
           volumeMounts:
