@@ -18,9 +18,12 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
+
+const MaxRetries = 5
 
 type JobScheduler interface {
 	ScheduleJob(job db.Job, programArtifacts []db.Artifact, creds []coreio.Credentials, splitSize *int64) ([]db.Task, error)
@@ -92,13 +95,16 @@ func (s JobSchedulingSvc) ScheduleJob(
 }
 
 func (s JobSchedulingSvc) createWorkerPods(jobId, wType, programPath, mountPath string, nSize int) ([]string, error) {
+	podName := generatePodName("worker-")
 	podDefinition := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "worker-",
-			Namespace:    s.config.GetWorkerNS(),
-			Labels:       map[string]string{"type": wType, "job": jobId},
+			Name:      podName,
+			Namespace: s.config.GetWorkerNS(),
+			Labels:    map[string]string{"type": wType, "job": jobId, "app": "worker"},
 		},
 		Spec: corev1.PodSpec{
+			Subdomain: "workers",
+			Hostname:  podName,
 			Containers: []corev1.Container{
 				{
 					Name:  "worker",
@@ -349,7 +355,7 @@ func (s JobSchedulingSvc) coordinateReduceTasks(tasks []db.Task, nMapper int, cr
 }
 
 func (s JobSchedulingSvc) startTask(target string, task *proto.Task) error {
-	target = fmt.Sprintf("%s:8090", target)
+	target = fmt.Sprintf("%s.workers.%s.svc.cluster.local:8090", target, s.config.GetWorkerNS())
 	if s.config.IsInDevMode() {
 		port, err := generateDevModeServicePort(task.GetId())
 		if err != nil {
@@ -365,6 +371,17 @@ func (s JobSchedulingSvc) startTask(target string, task *proto.Task) error {
 	s.logger.Info("Connected successfuly to %s", target)
 	client := proto.NewTaskCreatorClient(conn)
 	stream, err := client.StartTask(context.Background(), task)
+	retries := MaxRetries
+	exp := 2
+	for retries > 0 && err != nil {
+		s.logger.Warn("Connection attempt %v to %s failed with error %v", MaxRetries-retries+1, target, err)
+		backoff := time.Duration(exp-1) * time.Second
+		s.logger.Info("Retrying connection to %s in %v", target, backoff)
+		time.Sleep(backoff)
+		retries--
+		exp *= 2
+		stream, err = client.StartTask(context.Background(), task)
+	}
 	if err != nil {
 		return err
 	}
@@ -399,6 +416,20 @@ func generateDevModeServicePort(taskId string) (int, error) {
 		return 0, err
 	}
 	return (taskHash % 2768) + 30000, nil
+}
+
+func generatePodName(base string) string {
+	// NOTE: This code logic is directly extracted from the k8s api server codebase, for more details check:
+	// https://github.com/kubernetes/apiserver/blob/master/pkg/storage/names/generate.go
+	const (
+		maxNameLength          = 63
+		randomLength           = 5
+		maxGeneratedNameLength = maxNameLength - randomLength
+	)
+	if len(base) > maxGeneratedNameLength {
+		base = base[:maxGeneratedNameLength]
+	}
+	return fmt.Sprintf("%s%s", base, utilrand.String(randomLength))
 }
 
 func NewJobScheduler(k8sClient *kubernetes.Clientset, taskRepository db.TaskRepository) JobScheduler {

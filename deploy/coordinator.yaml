@@ -73,6 +73,16 @@ spec:
   selector:
     app: coordinator
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workers
+  namespace: apollo-workers
+spec:
+  selector:
+    app: worker
+  clusterIP: None
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
