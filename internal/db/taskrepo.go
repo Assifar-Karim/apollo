@@ -12,6 +12,7 @@ type TaskRepository interface {
 	FetchTasksByJobID(jobId string) ([]Task, error)
 	UpdateTaskStatusByID(id, status string) error
 	UpdateTaskEndTimeByID(id string, endTs int64) error
+	UpdateUnfinishedTasksStatusByJobID(status, jobId string) error
 }
 
 type SQLiteTaskRepository struct {
@@ -166,6 +167,13 @@ func (r *SQLiteTaskRepository) UpdateTaskEndTimeByID(id string, endTs int64) err
 	query := "UPDATE task SET end_time = ? WHERE id = ?;"
 	r.logger.Trace(query)
 	_, err := r.db.Exec(query, endTs, id)
+	return err
+}
+
+func (r *SQLiteTaskRepository) UpdateUnfinishedTasksStatusByJobID(status, jobId string) error {
+	query := "UPDATE task SET status = ? WHERE job_id = ? AND status != completed"
+	r.logger.Trace(query)
+	_, err := r.db.Exec(query, status, jobId)
 	return err
 }
 

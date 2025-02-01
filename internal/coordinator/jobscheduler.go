@@ -27,6 +27,7 @@ const MaxRetries = 5
 
 type JobScheduler interface {
 	ScheduleJob(job db.Job, programArtifacts []db.Artifact, creds []coreio.Credentials, splitSize *int64) ([]db.Task, error)
+	StopJob(id string) error
 }
 
 type JobSchedulingSvc struct {
@@ -92,6 +93,17 @@ func (s JobSchedulingSvc) ScheduleJob(
 
 	tasks := append(mTasks, rTasks...)
 	return tasks, nil
+}
+
+func (s JobSchedulingSvc) StopJob(id string) error {
+	listOptions := metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("job=%s", id),
+	}
+	err := s.podClient.DeleteCollection(context.Background(), metav1.DeleteOptions{}, listOptions)
+	if err != nil {
+		s.logger.Error("Could not delete job %s pods -> %v", id, err)
+	}
+	return err
 }
 
 func (s JobSchedulingSvc) createWorkerPods(jobId, wType, programPath, mountPath string, nSize int) ([]string, error) {

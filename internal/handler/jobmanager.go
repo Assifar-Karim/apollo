@@ -154,7 +154,35 @@ func (h *jobManagerHandler) getTasksByJobId(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *jobManagerHandler) stopJob(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement the job stopping logic
+	id := chi.URLParam(r, "id")
+	job, err := h.jobMetadataManager.GetJobById(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if job == nil {
+		http.Error(w, fmt.Sprintf("No job with id %s was found!", id), http.StatusNotFound)
+		return
+	}
+	if job.EndTime != nil {
+		http.Error(w, fmt.Sprintf("Job %s already finished its workload!", id), http.StatusNotAcceptable)
+		return
+	}
+	if err := h.jobScheduler.StopJob(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := h.jobMetadataManager.SetJobEndTimestamp(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := h.jobMetadataManager.SetJobTasksAsStopped(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("Job %s was successfully stopped", id)))
 }
 
 func NewJobManagerHandler(
@@ -173,7 +201,7 @@ func NewJobManagerHandler(
 	router.Get("/{id}", handler.getJobById)
 	router.Get("/{id}/tasks", handler.getTasksByJobId)
 	router.Post("/", handler.scheduleJob)
-	router.Delete("/", handler.stopJob)
+	router.Delete("/{id}", handler.stopJob)
 
 	return &Controller{
 		Pattern: "/api/v1/jobs",
