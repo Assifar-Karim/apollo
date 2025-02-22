@@ -8,7 +8,7 @@ import (
 
 func dropCR(data []byte) []byte {
 	if len(data) > 0 && data[len(data)-1] == '\r' {
-		return append(data[0:len(data)-1], '\n')
+		return data[0 : len(data)-1]
 	}
 	return data
 }
@@ -20,7 +20,8 @@ func scanLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	}
 	if i := bytes.IndexByte(data, '\n'); i >= 0 {
 		// We have a full newline-terminated line.
-		return i + 1, dropCR(data[0:i]), nil
+		lineData := dropCR(data[0:i])
+		return i + 1, append(lineData, '\n'), nil
 	}
 	// If we're at EOF, we have a final, non-terminated line. Return it.
 	if atEOF {
