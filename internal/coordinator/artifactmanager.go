@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"os"
 
 	"github.com/Assifar-Karim/apollo/internal/db"
@@ -13,7 +12,7 @@ import (
 )
 
 type ArtifactManager interface {
-	CreateArtifact(filename, artifactType string, size int64, file multipart.File) (db.Artifact, error)
+	CreateArtifact(filename, artifactType string, size int64, file io.Reader) (db.Artifact, error)
 	GetAllArtifactDetails() ([]db.Artifact, error)
 	GetArtifactDetailsByName(filename string) (*db.Artifact, error)
 	DeleteArtifact(filename string) (bool, error)
@@ -25,7 +24,7 @@ type ArtifactMngmtSvc struct {
 	logger             *utils.Logger
 }
 
-func getFileContent(file multipart.File) ([]byte, error) {
+func getFileContent(file io.Reader) ([]byte, error) {
 	buffer := bytes.NewBuffer(nil)
 	if _, err := io.Copy(buffer, file); err != nil {
 		return nil, err
@@ -49,7 +48,7 @@ func writeFile(path string, fileContent []byte) error {
 	return nil
 }
 
-func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int64, file multipart.File) (db.Artifact, error) {
+func (s ArtifactMngmtSvc) CreateArtifact(filename, artifactType string, size int64, file io.Reader) (db.Artifact, error) {
 	path := fmt.Sprintf("%s/%s", s.config.GetArtifactsPath(), filename)
 	fileContent, err := getFileContent(file)
 	if err != nil {
