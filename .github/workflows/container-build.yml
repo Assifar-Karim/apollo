@@ -7,7 +7,7 @@ env:
   REGISTRY: ghcr.io
 jobs:
   build-coordinator:
-    runs: ubuntu-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -21,6 +21,10 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
       - name: Extract image metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
@@ -28,7 +32,7 @@ jobs:
           images: ${{ env.REGISTRY }}/assifar-karim/apollo-coordinator
       - name: Build and push Docker image
         id: push
-        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: build/coordinator/Dockerfile
@@ -43,7 +47,7 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
   build-worker:
-    runs: ubuntu-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -57,6 +61,10 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v3
       - name: Extract image metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
@@ -64,7 +72,7 @@ jobs:
           images: ${{ env.REGISTRY }}/assifar-karim/apollo-worker
       - name: Build and push Docker image
         id: push
-        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: build/worker/Dockerfile
