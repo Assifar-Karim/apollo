@@ -1,0 +1,44 @@
+name: Build Apollo binaries
+on:
+  push:
+    tags:
+      - release/**/**
+jobs:
+  build-binaries:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install python dependencies
+        run: pip install -r .ci/requirements.txt
+      - name: Install go dependencies
+        run: go mod download
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "27.1"
+      - name: Install protoc-gen-go
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+      - name: Generate gRPC code
+        run: make generate_grpc_code
+      - name: Build worker amd64 binaries
+        run: make build_worker_amd64
+      - name: Build worker arm64 binaires
+        run: make build_worker_arm64
+      - name: Build coordinator amd64 binaries
+        run: make build_coordinator_amd64
+      - name: Build coordinator arm64 binaires
+        run: make build_coordinator_arm64
+      - name: Create release draft
+        run: python3 .ci/create-release.py ${{ secrets.GITHUB_TOKEN }} ${{ github.ref }}
