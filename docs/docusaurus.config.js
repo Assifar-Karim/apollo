@@ -13,7 +13,7 @@ const config = {
   title: 'Apollo',
   favicon: 'img/favicon.ico',
   url: 'https://assifar-karim.github.io',
-  baseUrl: '/',
+  baseUrl: '/apollo/',
   organizationName: 'assifar-karim', 
   projectName: 'apollo',
   trailingSlash: false,
