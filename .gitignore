@@ -7,3 +7,4 @@ manifests_temp/
 docs/node_modules
 docs/.docusaurus
 docs/build
+.ci/venv
