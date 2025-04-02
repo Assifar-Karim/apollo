@@ -71,7 +71,7 @@ func GetConfig() *Config {
 
 		workerImg, exists := os.LookupEnv("WORKER_IMG")
 		if !exists {
-			workerImg = "localhost:5000/worker:log-4" // TODO: Change with the actual worker image that will be uploaded later down the line
+			workerImg = "ghcr.io/assifar-karim/apollo-worker:release-0.1.1"
 		}
 
 		intermediateFilesLoc, exists := os.LookupEnv("INT_FILES_LOC")

@@ -103,7 +103,7 @@ spec:
       serviceAccountName: apollo-coordinator
       containers:
         - name: coordinator
-          image: localhost:5000/apollo:coordinator
+          image: ghcr.io/assifar-karim/apollo-coordinator:release-0.1.1
           imagePullPolicy: Always
           ports:
             - containerPort: 4750
